@@ -7,6 +7,7 @@
 #include <fstream>
 
 enum MARK{ VISITED, UNVISITED };
+enum INCLUDED{ INCLUDED, EXCLUDED };
 
 class AMGraph : public Graph {
 private:
@@ -17,6 +18,7 @@ private:
 	std::ifstream readFile;
 	std::ofstream writeFile;
 
+	// Make sure filename is valid
 	bool isValidFile(std::string file) {
 		bool valid = file.find(".graph") != std::string::npos;
 		if (!valid) {
@@ -56,7 +58,9 @@ private:
 				int weight = 0;
 				for (int col = 0; col < numVertices; col++) {
 					line >> weight;
-					setEdge(row, col, weight);
+					if (weight != 0) {
+						setEdge(row, col, weight);
+					}
 					weight = 0;
 				}
 				row++;
@@ -75,11 +79,33 @@ private:
 
 		readFile.close();
 	}
+
+	// Find minimum cost vertex
+	int minVertex(AMGraph* G, int* D) {
+		int i, v = -1;
+		// Get first unvisited node
+		for (i = 0; i < G->n(); i++) {
+			if (G->getMark(i) == UNVISITED) {
+				v = i;
+				break;
+			}
+		}
+		// Check all subsequent nodes to see if one exists such that 
+		// A) it is also unvisited
+		// B) it has a cheaper cost
+		for (i++; i < G->n(); i++) {
+			if (G->getMark(i) == UNVISITED && D[i] < D[v]) {
+				v = i;
+			}
+		}
+		return v;
+	}
+
+
 public:
 	AMGraph(int v) {
 		Init(v);
 	}
-
 	AMGraph(std::string file) {
 		read(file);
 	}
@@ -127,8 +153,8 @@ public:
 
 	// Return v’s first neighbor
 	int first(int v) const {
-		int n = numVertices;
-		for (int i = 0; i < numVertices; i++) {
+		int n = this->n();
+		for (int i = 0; i < n; i++) {
 			if (matrix[v][i] != 0) {
 				n = i;
 				break;
@@ -183,10 +209,12 @@ public:
 	}
 
 	// Print Graph to console
-	void print() const {
-		std::cout << "Number of vertices is " << numVertices << std::endl;
-		std::cout << "Number of edges is " << numEdges << std::endl;
-		std::cout << "Matrix:" << std::endl;
+	void print(bool mst) const {
+		if (!mst) {
+			std::cout << "Number of vertices is " << numVertices << std::endl;
+			std::cout << "Number of edges is " << numEdges << std::endl;
+			std::cout << "Matrix:" << std::endl;
+		}
 		for (int row = 0; row < numVertices; row++) {
 			for (int col = 0; col < numVertices; col++) {
 				std::cout << matrix[row][col] << " ";
@@ -217,4 +245,41 @@ public:
 		writeFile.close();
 	}
 
+	// Generate a minimum cost spanning tree starting from vertex v
+	AMGraph* MCST(int s) {
+		AMGraph* mst = new AMGraph(numVertices);
+		std::cout << std::endl << "Begin MST starting at vertex " << s << std::endl;
+
+		// Prim's Algorithm
+		int* D = new int[this->n()]; // Array of weights
+		int* V = new int[this->n()]; // Array of node markers, manages state of node included/excluded
+		int i, w;
+		// Set all weights to infinite
+		for (int i = 0; i < this->n(); i++) {
+			D[i] = INT_MAX;
+			V[i] = INT_MAX;
+			this->setMark(i, UNVISITED);
+		}
+		D[s] = 0;
+		for (i = 0; i < this->n(); i++) {
+			int v = minVertex(this, D);
+			this->setMark(v, VISITED);
+			if (v != s) {
+				int a = (V[v] == INT_MAX ? s : V[v]);
+				mst->setEdge(a, v, D[v]);
+				mst->setEdge(v, a, D[v]);
+			}
+			if (D[v] == INFINITY) return mst;
+
+			for (w = this->first(v); w < this->n(); w = this->next(v, w)) {
+				if (D[w] > this->weight(v, w)) {
+					D[w] = this->weight(v, w);
+					V[w] = v;
+				}
+			}
+		}
+
+		mst->print(true);
+		return mst;
+	}
 };
